@@ -11,12 +11,12 @@ import time
 import requests
 import http.client
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime, timedelta
 import threading
 import socket
 import subprocess
 import urllib3
+
 
 logging.basicConfig(
     filename='Event.log',
@@ -142,12 +142,13 @@ def process_emails(api_url, output_directory, selenium_url, driver):
                 subject_data = entry.get('subject', '')
                 status_data = entry.get('status', '')
                 start_date_data = entry.get('start_date', '')
-                brand_value = entry.get('brand', '')
-                end_date_data = entry.get('end_date', '')
+                brand_data = entry.get('brand', '')
+                model_data = entry.get('PMI', '')
+                # end_date_data = entry.get('end_date', '')
                 description_data = entry.get('description', '')
-                start_time_data = entry.get('start_time', '')
-                end_time_data = entry.get('end_time', '')
-                VIN_data = entry.get('VIN', '')
+                # start_time_data = entry.get('start_time', '')
+                # end_time_data = entry.get('end_time', '')
+                # VIN_data = entry.get('VIN', '')
                 assigned_to_data = entry.get('assigned_to', '')
                 lead_id_followup = entry.get('lead_id', '')
                 cxp_lead_code = entry.get('cxp_lead_code', '')
@@ -258,53 +259,242 @@ def process_emails(api_url, output_directory, selenium_url, driver):
                 start_date_input.send_keys(start_date_value)
                 print(f"Filled start date using xpath: {xpath} with value: {start_date_value}")
 
-                # ----------------- Scroll to and Fill Brand Field -----------------
-            try:
-                # Step 1: Scroll to "Brand" label (span element)
-                brand_label_xpath = "//span[text()='Brand']"
-                brand_label = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, brand_label_xpath))
-                )
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", brand_label)
-                time.sleep(1)
-                print("✅ Scrolled to Brand label")
+               
 
-                # Step 2: Click on the Brand input combobox (<a role='combobox'>)
-                brand_input_xpaths = [
-                    "//span[text()='Brand']/following::a[@role='combobox'][1]",
-                    "//a[@role='combobox' and contains(@class, 'select') and @aria-labelledby]",
-                    "(//a[@role='combobox'])[last()]"
-                ]
+                try:
+                    print("🚀 Trying to click Brand combobox with multiple XPaths...")
 
-                brand_input = None
-                for xpath in brand_input_xpaths:
-                    try:
-                        brand_input = WebDriverWait(driver, 5).until(
-                            EC.element_to_be_clickable((By.XPATH, xpath))
+                    xpaths = [
+                        "//div[@data-target-selection-name='sfdc:RecordField.Event.Brand__c']//a[@role='combobox']",
+                        "//span[text()='Brand']/ancestor::div[contains(@class, 'slds-form-element')]/descendant::a[@role='combobox']",
+                        "//span[text()='Brand']/following::a[@role='combobox'][1]",
+                        "(//a[@role='combobox' and contains(@class, 'select')])[last()]"
+                    ]
+
+                    brand_value = brand_data.strip()  # JSON se value
+
+                    combobox_element = None
+                    for i, xpath in enumerate(xpaths):
+                        try:
+                            print(f"🔍 Trying XPath {i+1}: {xpath}")
+                            elem = WebDriverWait(driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, xpath))
+                            )
+                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", elem)
+                            time.sleep(1.5)
+
+                            if elem.is_displayed() and elem.is_enabled():
+                                elem.click()
+                                print(f"✅ Brand combobox clicked using XPath {i+1}")
+                                logging.info(f"✅ Brand combobox clicked using XPath {i+1}: {xpath}")
+                                combobox_element = elem
+                                break
+                        except Exception as e:
+                            print(f"❌ XPath {i+1} failed: {e}")
+                            driver.execute_script("window.scrollBy(0, 250);")
+                            time.sleep(1.5)
+                    else:
+                        raise Exception("❌ Brand combobox not found/clicked after all XPaths.")
+
+                    if combobox_element:
+                        # Dropdown options ka xpath - ye depend karta hai UI pe, example de raha hu:
+                        option_xpath = f"//a[@role='option' and @title='{brand_value}']"
+
+                        # Wait for dropdown to appear and option to be clickable
+                        option_element = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.XPATH, option_xpath))
                         )
-                        brand_input.click()
-                        print(f"✅ Brand combobox clicked using xpath: {xpath}")
-                        break
-                    except Exception as e:
-                        print(f"❌ Failed with xpath: {xpath} – {e}")
+                        time.sleep(2)
+                        option_element.click()
+                        print(f"✅ Brand option '{brand_value}' selected.")
 
-                # Step 3: Select the brand option from dropdown using text from JSON
-                if brand_input:
-                    brand_value_xpath = f"//a[@role='option']//span[normalize-space()='{brand_value}']"
-                    try:
-                        dropdown_option = WebDriverWait(driver, 5).until(
-                            EC.element_to_be_clickable((By.XPATH, brand_value_xpath))
+                except Exception as final_e:
+                    logging.error(f"🔥 Brand selection failed: {final_e}")
+                    print(f"🔥 Brand selection failed: {final_e}")
+
+                try:
+                    print("🚀 Trying to click Model combobox with multiple XPaths...")
+
+                    xpaths = [
+                        "//div[@data-target-selection-name='sfdc:RecordField.Event.Model__c']//a[@role='combobox']",
+                        "//span[text()='Model']/ancestor::div[contains(@class, 'slds-form-element')]/descendant::a[@role='combobox']",
+                        "//span[text()='Model']/following::a[@role='combobox'][1]",
+                        "(//a[@role='combobox' and contains(@class, 'select')])[last()]"
+                    ]
+
+                    model_value = model_data.strip()  # JSON se value
+
+                    combobox_element = None
+                    for i, xpath in enumerate(xpaths):
+                        try:
+                            print(f"🔍 Trying XPath {i+1}: {xpath}")
+                            elem = WebDriverWait(driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, xpath))
+                            )
+                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", elem)
+                            time.sleep(1.5)
+
+                            if elem.is_displayed() and elem.is_enabled():
+                                elem.click()
+                                print(f"✅ Model combobox clicked using XPath {i+1}")
+                                logging.info(f"✅ Model combobox clicked using XPath {i+1}: {xpath}")
+                                combobox_element = elem
+                                break
+                        except Exception as e:
+                            print(f"❌ XPath {i+1} failed: {e}")
+                            driver.execute_script("window.scrollBy(0, 250);")
+                            time.sleep(1.5)
+                    else:
+                        raise Exception("❌ Model combobox not found/clicked after all XPaths.")
+
+                    if combobox_element:
+                        # Dropdown option XPath for model, assuming 'title' attribute has model name
+                        option_xpath = f"//a[@role='option' and @title='{model_value}']"
+
+                        print(f"🔍 Waiting for dropdown option: {option_xpath}")
+                        option_element = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.XPATH, option_xpath))
                         )
-                        dropdown_option.click()
-                        print(f"✅ Selected brand from dropdown: {brand_value}")
-                    except Exception as e:
-                        print(f"⚠️ Brand value not found in dropdown: {brand_value}. Error: {e}")
-                else:
-                    print("❌ Brand input element could not be located.")
-            except Exception as e:
-                print(f"🔥 Error while scrolling to/selecting Brand: {e}")
+                        driver.execute_script("arguments[0].scrollIntoView(true);", option_element)
+                        time.sleep(0.5)
+                        option_element.click()
+                        print(f"✅ Model option '{model_value}' selected.")
+
+                except Exception as final_e:
+                    logging.error(f"🔥 Model selection failed: {final_e}")
+                    print(f"🔥 Model selection failed: {final_e}")
+                try:
+                    print("🚀 Trying to scroll to and fill Description field...")
+
+                    # Scroll karne ke liye description label element ka xpath (jo label hai uske basis pe scroll karna)
+                    description_label_xpath = "//span[text()='Description']"
+
+                    # Description textarea ka xpath
+                    description_textarea_xpath = "//textarea[@role='textbox' and contains(@class, 'uiInputTextArea')]"
+
+                    # Scroll to Description label tak
+                    description_label_elem = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, description_label_xpath))
+                    )
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", description_label_elem)
+                    time.sleep(1)  # thoda wait kare page scroll hone ke liye
+
+                    # Textarea element locate karo
+                    description_textarea_elem = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.XPATH, description_textarea_xpath))
+                    )
+
+                    # Click karo textarea pe taaki focus mile
+                    description_textarea_elem.click()
+                    time.sleep(0.5)
+
+                    # JSON ya dict se jo comment aayega usko yahan dalna hai
+                    description_comment = description_data.strip()  # assume description_data me tumhara comment hai
+
+                    # Textarea clear karo agar pehle se kuch ho to
+                    description_textarea_elem.clear()
+                    time.sleep(0.3)
+
+                    # Naya comment bhejo
+                    description_textarea_elem.send_keys(description_comment)
+                    print(f"✅ Description field filled with comment: {description_comment}")
+
+                except Exception as e:
+                    print(f"🔥 Failed to fill Description field: {e}")
+                    logging.error(f"Failed to fill Description field: {e}")
+                
+                try:
+                    
+                    
+                    # Correct XPath based on your HTML structure
+                    save_btn = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, "(//button[@title='Save' and contains(@class, 'uiButton--brand') and .//span[text()='Save']])[last()]"))
+                    )
+                    
+                    if save_btn.is_displayed():
+                        print("Save button is displayed")
+                        save_btn.click()
+                        
+                except Exception as e:
+                    print("Save button error:", str(e))
+                    
+                time.sleep(5)   
+                       
+                try:
+                    toast_element = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, "//div[contains(@class,'forceToastMessage')]//a[contains(@class, 'forceActionLink')]"))
+                    )
+                    if toast_element.is_displayed():
+                        print("Toast element is displayed")
+                        toast_element.click()
+                    else:
+                        print("Toast element not found")
+                except Exception as e:
+                    print("Toast message handling:", e)
+                    time.sleep(5)
+
+                # Capture URL and send PUT request
+                current_url = driver.current_url
+                print(f"Captured URL: {current_url}")
+
+                file_name = "EventUpdate.json"
+                event_data = {"event_id": event_id_followup, "url": current_url}
+
+                with open(file_name, 'w') as json_file:
+                    json.dump(event_data, json_file, indent=4)
+
+                with open(file_name, 'r') as json_file:
+                    payload = json.load(json_file)
+
+                try:
+                    context = ssl._create_unverified_context()
+                    conn = http.client.HTTPSConnection("api.smartassistapp.in", context=context)
+
+                    payload_json = json.dumps(payload)
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Content-Length": str(len(payload_json))
+                    }
+
+                    conn.request("PUT", "/api/RPA/events/new/flag-inactive", body=payload_json, headers=headers)
+                    response = conn.getresponse()
+
+                    if response.status == 200:
+                        print("Successfully updated the lead data!")
+                        data = response.read().decode()
+                        logging.info(f"PUT Response: {data}")
+                    else:
+                        print(f"Failed to update lead data. HTTP {response.status}")
+                        logging.error(f"PUT Error Response: {response.read().decode()}")
+                except Exception as e:
+                    logging.error(f"PUT request error: {e}")
+                    print(f"PUT request error: {e}")
+
+                # Return to main page for next iteration
+                try:
+                    driver.get(selenium_url)  # Go back to main page instead of using back()
+                    time.sleep(5)
+                    print("Returned to main page for next task")
+                except Exception as e:
+                    print(f"Error returning to main page: {e}")
+
+                except Exception as e:
+                    logging.error(f"Error processing task ID {entry.get('event_id')}: {e}")
+                    print(f"Error processing task ID {entry.get('event_id')}: {e}")
+                    failed_followups.add(event_id_followup)
+                    continue
+
+        print(f"Processing complete. Failed tasks: {failed_followups}")
+               
+
+                       
+
+                        
 
 
+                
+
+                        
                 
     except Exception as e:
         logging.error(f"Error in process_emails: {e}")
